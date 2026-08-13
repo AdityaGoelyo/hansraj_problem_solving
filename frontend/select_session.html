@@ -37,8 +37,17 @@
                     const cell = document.createElement('button');
                     cell.className = 'cell nav_button';
                     cell.textContent = session.title;
-                    cell.addEventListener('click', function click() {
-                        window.location.href = 'run_guided_session.html?session=' + session.id;
+                    cell.addEventListener('click', async function click() {
+
+                        // add session attempt number in the url
+                        let { data: AttemptNumberArray } = await client.from('session_attempts')
+                        .select('*')
+                        .eq('session_id',session.id)
+                        .eq('solver_id', user.id)
+                        .order('attempt_number')
+                        .limit(1, { ascending: false });
+                        let HighestAttemptNumber = AttemptNumberArray.length  ? AttemptNumberArray[0].attempt_number + 1 : 0; 
+                        window.location.href = 'run_guided_session.html?session=' + session.id + '&attempt=' + HighestAttemptNumber;
                     });
                     container.appendChild(cell);
                 }

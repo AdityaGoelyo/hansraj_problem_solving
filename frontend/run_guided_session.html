@@ -55,13 +55,24 @@
         async function init() {
 
             // Load some data
-            const { data: { user } } = await client.auth.getUser();
-            const params = new URLSearchParams(window.location.search);
-            const sessionId = params.get('session');
-            const { data: session, error: sessionError } = await client.from('sessions').select('*').eq('id', sessionId).single();
-            const { data: sessionProblems } = await client.from('session_problems').select('*, problems(*)').eq('session_id', sessionId).order('position');
-            let current_problem_number = session.current_problem_number;
-            let now = new Date().toISOString();
+                const { data: { user } } = await client.auth.getUser();
+                const params = new URLSearchParams(window.location.search);
+                const sessionId = params.get('session');
+                const { data: session, error: sessionError } = await client.from('sessions').select('*').eq('id', sessionId).single();
+                const { data: sessionProblems } = await client.from('session_problems').select('*, problems(*)').eq('session_id', sessionId).order('position');
+                let current_problem_number = session.current_problem_number;
+                let now = new Date().toISOString();
+
+                // get current attempt number
+
+                let {data : PreviousAttemptNumber} = await client.from('attempts')
+                .select('attempt_number')
+                .eq('solver_id',user.id)
+                .eq('problem_id', sessionProblems[current_problem_number].problems.id)
+                .order('attempt_number', {ascending: false})
+                .limit(1);
+
+                let HighestAttemptNumber = PreviousAttemptNumber.length  ? PreviousAttemptNumber[0].attempt_number : 0; 
 
             // set webpage title
 
@@ -106,6 +117,9 @@
 
             // sync to database for current problem
 
+                
+            // upadate session_states_log for first problem
+
             await client.from('session_states_log').insert({
                     solver_id:user.id,
                     problem_id:sessionProblems[current_problem_number].problems.id,
@@ -113,6 +127,10 @@
                     presented_at: now
                 });
 
+            // check for changes in sessions table for current_problem_number
+            // update page accordingly
+            // upload data accordingly
+            
             let current_session_params = client.channel('current_session_params').on(
                 'postgres_changes',
                 {
@@ -131,8 +149,10 @@
                         solver_id:user.id,
                         problem_id:sessionProblems[current_problem_number].problems.id,
                         session_id:sessionId,
-                        attempt_number:0, // correct this to a more dynamic number later
-                        is_correct:isProved
+                        attempt_number:HighestAttemptNumber+1, // correct this to a more dynamic number later
+                        is_correct:isProved, // ensure that this is correctly maintained
+                        time_taken_seconds:(new Date() - new Date(now)) / 1000, // time taken in seconds
+                        session_attempt_id: pasreInt(params.get('attempt'), 10)
                     });
                     now = new Date().toISOString();
                     await client.from('session_states_log').insert({
@@ -141,6 +161,17 @@
                         session_id:sessionId,
                         presented_at: now
                     });
+
+                    // Update The Problems Highest Attempt Number
+
+                    let {data : PreviousAttemptNumber} = await client.from('attempts')
+                    .select('attempt_number')
+                    .eq('solver_id',user.id)
+                    .eq('problem_id', sessionProblems[current_problem_number].problems.id)
+                    .order('attempt_number', {ascending: false})
+                    .limit(1);
+                    let HighestAttemptNumber = PreviousAttemptNumber.length ? PreviousAttemptNumber[0].attempt_number : 0; 
+
                     proof_based_answer_button.classList.remove('selected');
                     isProved = false;
                 }   
