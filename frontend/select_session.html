@@ -31,7 +31,11 @@
         <!--Load the Sessions-->
         <script>
             async function init() {
+
+                // Load some data
+                const { data: { user } } = await client.auth.getUser();
                 const container = document.getElementById('the_screen');
+
                 const { data, error } = await client.from('sessions').select('*');
                 for (const session of data) {
                     const cell = document.createElement('button');
@@ -40,12 +44,13 @@
                     cell.addEventListener('click', async function click() {
 
                         // add session attempt number in the url
-                        let { data: AttemptNumberArray } = await client.from('session_attempts')
+                        let { data: AttemptNumberArray, error } = await client.from('session_attempts')
                         .select('*')
                         .eq('session_id',session.id)
                         .eq('solver_id', user.id)
-                        .order('attempt_number')
-                        .limit(1, { ascending: false });
+                        .order('attempt_number', { ascending: false })
+                        .limit(1);
+                        if (error) console.error(error);
                         let HighestAttemptNumber = AttemptNumberArray.length  ? AttemptNumberArray[0].attempt_number + 1 : 1; 
                         window.location.href = 'run_guided_session.html?session=' + session.id + '&attempt=' + HighestAttemptNumber;
                     });

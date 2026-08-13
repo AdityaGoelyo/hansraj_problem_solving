@@ -72,8 +72,18 @@
                 .order('attempt_number', {ascending: false})
                 .limit(1);
 
-                let HighestAttemptNumber = PreviousAttemptNumber.length  ? PreviousAttemptNumber[0].attempt_number : 0; 
+                let HighestAttemptNumber = PreviousAttemptNumber.length ? PreviousAttemptNumber[0].attempt_number : 0; 
 
+                // upload session attempt number to session_attempts table
+
+                session_attempt_id = crypto.randomUUID();
+                await client.from('session_attempts').insert({
+                    'id': session_attempt_id,
+                    'session_id': sessionId,
+                    'solver_id': user.id,
+                    'attempt_number': parseInt(params.get('attempt'), 10),
+                    'started_at': now
+                });
             // set webpage title
 
             const webpage_title = document.getElementById("webpage_title");
@@ -104,12 +114,15 @@
             // answer field
 
             // proof based answer
+                let problemStartedAt = new Date();
+                let problemEndedAt = new Date();
                 const proof_based_answer_button = document.getElementById("answer_button");
                 let isProved = false;
                 proof_based_answer_button.addEventListener('click', async function () {
                     proof_based_answer_button.classList.toggle('selected');
                     isProved = !isProved;
                     if (isProved == true) {
+                        problemEndedAt = new Date();
                         await client.from('session_states_log').update({closed_at: new Date().toISOString()}).eq('presented_at',now);
                     }
                 });
@@ -146,15 +159,17 @@
                     current_problem_title.textContent = sessionProblems[current_problem_number].problems.title;
                     current_problem_data.innerHTML = sessionProblems[current_problem_number].problems.statement_html;
                     current_problem_id.textContent = `Problem Id: ${sessionProblems[current_problem_number].problems.id}`;
-                    await client.from('attempts').insert({
+                    if (isProved == false) problemEndedAt = new Date();
+                    const error = await client.from('attempts').insert({
                         solver_id:user.id,
                         problem_id:sessionProblems[previousProblemNumber].problems.id,
                         session_id:sessionId,
                         attempt_number:HighestAttemptNumber+1, // correct this to a more dynamic number later
                         is_correct:isProved, // ensure that this is correctly maintained
-                        time_taken_seconds:(new Date() - new Date(now)) / 1000, // time taken in seconds
-                        session_attempt_id: parseInt(params.get('attempt'), 10)
+                        time_taken_seconds: Math.round((problemEndedAt - problemStartedAt) / 1000), // time taken in seconds
+                        session_attempt_id: session_attempt_id
                     });
+                    if (error) console.error(error);
                     now = new Date().toISOString();
                     await client.from('session_states_log').insert({
                         solver_id:user.id,
@@ -173,8 +188,12 @@
                     .limit(1);
                     HighestAttemptNumber = PreviousAttemptNumber.length ? PreviousAttemptNumber[0].attempt_number : 0; 
 
+
+                    // reset proof values
                     proof_based_answer_button.classList.remove('selected');
                     isProved = false;
+                    problemStartedAt = new Date();
+                    problemEndedAt = new Date();
                 }   
                 ).subscribe();
         }
