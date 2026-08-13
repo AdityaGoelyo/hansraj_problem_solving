@@ -2,7 +2,7 @@
 
 This is a platform designed to make problems easy to find and solve. It aims to reduce the friction involved in, and improve the quality of ones mathematics study.
 
-# Features to be added
+## Features to be added
 
 1) RLS
 2) error-handling
