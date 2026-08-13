@@ -19,6 +19,7 @@
         }
     </style>
 
+    <script src = "student_auth.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
         const { createClient } = supabase;
@@ -52,8 +53,10 @@
 
     <script>
 
-        async function init() {
+    isLoggedIn();
 
+        async function init() {
+        
             // Load some data
                 const { data: { user } } = await client.auth.getUser();
                 const params = new URLSearchParams(window.location.search);
@@ -199,6 +202,7 @@
         }
 
         init();
+        
     </script>
 
 </body>
