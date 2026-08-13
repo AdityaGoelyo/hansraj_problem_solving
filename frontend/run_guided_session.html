@@ -140,6 +140,7 @@
                     filter: `id=eq.${sessionId}`
                 },
                 async (payload) => {
+                    let previousProblemNumber = current_problem_number;
                     current_problem_number = payload.new.current_problem_number;
                     problem_counter.textContent = `Current Problem Number: ${current_problem_number + 1}/${total_num_problems + 1}`;
                     current_problem_title.textContent = sessionProblems[current_problem_number].problems.title;
@@ -147,12 +148,12 @@
                     current_problem_id.textContent = `Problem Id: ${sessionProblems[current_problem_number].problems.id}`;
                     await client.from('attempts').insert({
                         solver_id:user.id,
-                        problem_id:sessionProblems[current_problem_number].problems.id,
+                        problem_id:sessionProblems[previousProblemNumber].problems.id,
                         session_id:sessionId,
                         attempt_number:HighestAttemptNumber+1, // correct this to a more dynamic number later
                         is_correct:isProved, // ensure that this is correctly maintained
                         time_taken_seconds:(new Date() - new Date(now)) / 1000, // time taken in seconds
-                        session_attempt_id: pasreInt(params.get('attempt'), 10)
+                        session_attempt_id: parseInt(params.get('attempt'), 10)
                     });
                     now = new Date().toISOString();
                     await client.from('session_states_log').insert({
@@ -170,7 +171,7 @@
                     .eq('problem_id', sessionProblems[current_problem_number].problems.id)
                     .order('attempt_number', {ascending: false})
                     .limit(1);
-                    let HighestAttemptNumber = PreviousAttemptNumber.length ? PreviousAttemptNumber[0].attempt_number : 0; 
+                    HighestAttemptNumber = PreviousAttemptNumber.length ? PreviousAttemptNumber[0].attempt_number : 0; 
 
                     proof_based_answer_button.classList.remove('selected');
                     isProved = false;

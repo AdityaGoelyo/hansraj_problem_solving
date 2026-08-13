@@ -46,7 +46,7 @@
                         .eq('solver_id', user.id)
                         .order('attempt_number')
                         .limit(1, { ascending: false });
-                        let HighestAttemptNumber = AttemptNumberArray.length  ? AttemptNumberArray[0].attempt_number + 1 : 0; 
+                        let HighestAttemptNumber = AttemptNumberArray.length  ? AttemptNumberArray[0].attempt_number + 1 : 1; 
                         window.location.href = 'run_guided_session.html?session=' + session.id + '&attempt=' + HighestAttemptNumber;
                     });
                     container.appendChild(cell);
