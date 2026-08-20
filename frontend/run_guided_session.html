@@ -17,10 +17,13 @@
         #current_problem_id {
             font-size: 12px;
         }
+        .answer_block { display: contents; }
+        .answer_block.hidden { display: none; }
     </style>
 
     <script src = "student_auth.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src = "session_common.js"></script>
     <script>
         const { createClient } = supabase;
         const client = createClient('https://njeksdjjndvqpueniyps.supabase.co', 'sb_publishable_1Xo-DLe_Y5eGdOfTr7nSeg_K8rju5uF');
@@ -49,7 +52,21 @@
 
         <!-- Proof based answer button -->
 
-        <button class = "cell" id = "answer_button">Press when proved!</button>
+        <div id = "proof_block" class = "answer_block">
+            <button class = "cell" id = "proof_based_answer_button">Press when proved!</button>
+        </div>
+
+        <!-- Integer answer field -->
+
+        <div id = "integer_block" class = "answer_block">
+            <input class = "cell" type = "text" id = "integer_answer_input" placeholder="Type answer (integer)">
+            <button class = "cell nav_button" id = "integer_submit">Submit Answer</button>
+        </div>
+
+        <!-- Mcq answer field-->
+
+        <div id = "mcq_block" class = "answer_block">
+        </div>
 
     </div>
 
@@ -60,35 +77,14 @@
         async function init() {
         
             // Load some data
-                const { data: { user } } = await client.auth.getUser();
-                const params = new URLSearchParams(window.location.search);
-                const sessionId = params.get('session');
-                const { data: session, error: sessionError } = await client.from('sessions').select('*').eq('id', sessionId).single();
-                const { data: sessionProblems } = await client.from('session_problems').select('*, problems(*)').eq('session_id', sessionId).order('position');
-                let current_problem_number = session.current_problem_number;
-                let now = new Date().toISOString();
-
-                // get current attempt number
-
-                let {data : PreviousAttemptNumber} = await client.from('attempts')
-                .select('attempt_number')
-                .eq('solver_id',user.id)
-                .eq('problem_id', sessionProblems[current_problem_number].problems.id)
-                .order('attempt_number', {ascending: false})
-                .limit(1);
-
-                let HighestAttemptNumber = PreviousAttemptNumber.length ? PreviousAttemptNumber[0].attempt_number : 0; 
-
-                // upload session attempt number to session_attempts table
-
-                session_attempt_id = crypto.randomUUID();
-                await client.from('session_attempts').insert({
-                    'id': session_attempt_id,
-                    'session_id': sessionId,
-                    'solver_id': user.id,
-                    'attempt_number': parseInt(params.get('attempt'), 10),
-                    'started_at': now
-                });
+            const { user, params, session, sessionId, sessionProblems, current_problem_number, now } = await loadData();
+            
+            // Get highest attempt number of the current problem
+            let HighestAttemptNumber = await getHighestAttemptNumber(user, sessionProblems, current_problem_number);
+            
+            // upload session attempt number to session_attempts table
+            await upload_attempt_number_to_session_attempts(sessionId, user, params, now);
+            
             // set webpage title
 
             const webpage_title = document.getElementById("webpage_title");
@@ -97,31 +93,25 @@
             const sessionTitle = document.getElementById("sessionTitle");
             sessionTitle.textContent = session.title;
 
-            // render problem title
+            // render problem title, id and counter
 
-            const problem_counter = document.getElementById("problem_counter");
-            const total_num_problems = Math.max(...sessionProblems.map(item => item.position));
-            problem_counter.textContent = `Current Problem Number: ${current_problem_number + 1}/${total_num_problems + 1}`;
+            const {problem_counter, total_num_problems, current_problem_title, current_problem_id} = render_problem_title_id_and_counter(sessionProblems, current_problem_number);
 
-            const current_problem_title = document.getElementById("current_problem_title");
-            current_problem_title.textContent = sessionProblems[current_problem_number].problems.title;
-          
             // render statement text
 
             const current_problem_data = document.getElementById("current_problem_data");
             current_problem_data.innerHTML = sessionProblems[current_problem_number].problems.statement_html;
 
-            // render problem id
-
-            const current_problem_id = document.getElementById("current_problem_id");
-            current_problem_id.textContent = `Problem Id: ${sessionProblems[current_problem_number].problems.id}`;
-
             // answer field
+            
+            // answer display logic
+
+            showAnswerBlock(sessionProblems[current_problem_number].problems.problem_type);
 
             // proof based answer
                 let problemStartedAt = new Date();
                 let problemEndedAt = new Date();
-                const proof_based_answer_button = document.getElementById("answer_button");
+                const proof_based_answer_button = document.getElementById("proof_based_answer_button");
                 let isProved = false;
                 proof_based_answer_button.addEventListener('click', async function () {
                     proof_based_answer_button.classList.toggle('selected');
@@ -165,6 +155,10 @@
                     current_problem_data.innerHTML = sessionProblems[current_problem_number].problems.statement_html;
                     current_problem_id.textContent = `Problem Id: ${sessionProblems[current_problem_number].problems.id}`;
                     if (isProved == false) problemEndedAt = new Date();
+
+                    // insert the new attempt
+
+                    // proof based answer
                     const error = await client.from('attempts').insert({
                         solver_id:user.id,
                         problem_id:sessionProblems[previousProblemNumber].problems.id,
@@ -175,6 +169,8 @@
                         session_attempt_id: session_attempt_id
                     });
                     if (error) console.error(error);
+
+                    // update session states log
                     now = new Date().toISOString();
                     await client.from('session_states_log').insert({
                         solver_id:user.id,
@@ -199,6 +195,9 @@
                     isProved = false;
                     problemStartedAt = new Date();
                     problemEndedAt = new Date();
+
+                    // reset answer type
+                    showAnswerBlock(sessionProblems[current_problem_number].problems.problem_type);
                 }   
                 ).subscribe();
         }
