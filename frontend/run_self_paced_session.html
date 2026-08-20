@@ -10,7 +10,7 @@
 
 <body>
 
-    <style>9
+    <style>
         #session_id {
             font-size: 12px;
         }
@@ -44,8 +44,16 @@
         <!-- Session Controls: submit answer, current problem number/total problems-->
 
         <div class = "cell">
-                <div class = "subcell" id = "problem_counter"></div>
+            <div class = "subcell" style="font-size: var(--med-font);" id = "problem_counter"></div>
+        
+            <div class = "subcell" id = "session_controls" style="flex-direction: row;">
+                <button class = "subcell nav_button" style = "background: var(--paper);" id = "previous_button" style="margin: 4px;">Previous</button>
+                <button class = "subcell nav_button" style = "background: var(--paper);" id = "next_button" style="margin: 4px;">Next</button>
+            </div>
         </div>
+
+        <!-- Controls: Next Problem Button -->
+
 
         <button class = "cell" id = "answer_button">Press when proved!</button>
 

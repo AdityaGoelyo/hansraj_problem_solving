@@ -4,9 +4,13 @@
   --paper:    #decbb7;
   --line:     #8f857d;
   --light_paper: #f7f0f5;
+  --accent: #8f857d;
   --font-ui:  "Iowan Old Style", "Palatino Linotype", Georgia, serif;
   --font-mono: "SF Mono", "Menlo", monospace;
   --selected_green: #ccd5ae;
+  --small-font: 12px;
+  --med-font: 16px;
+  --large-font: 20px;
 }
 body {
     margin: 0 auto;
@@ -36,7 +40,7 @@ body {
   border: None;
   cursor: pointer;
   font-family: var(--font-mono);
-  font-size: 150%;
+  font-size: var(--med-font);
 }
 .columns {
   display: flex;
