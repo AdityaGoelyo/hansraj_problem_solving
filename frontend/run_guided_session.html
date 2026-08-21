@@ -66,6 +66,8 @@
         <!-- Mcq answer field-->
 
         <div id = "mcq_block" class = "answer_block">
+            <div id = "mcq_options" class = "answer_block"></div>
+            <button class = "cell nav_button" id = "mcq_submit">Submit Answer</button>
         </div>
 
     </div>
@@ -77,7 +79,7 @@
         async function init() {
         
             // Load some data
-            const { user, params, session, sessionId, sessionProblems, current_problem_number, now } = await loadData();
+            let { user, params, session, sessionId, sessionProblems, current_problem_number, now } = await loadData();
             
             // Get highest attempt number of the current problem
             let HighestAttemptNumber = await getHighestAttemptNumber(user, sessionProblems, current_problem_number);
@@ -109,6 +111,7 @@
             showAnswerBlock(sessionProblems[current_problem_number].problems.problem_type);
 
             // proof based answer
+                const proof_block = document.getElementById('proof_block');
                 let problemStartedAt = new Date();
                 let problemEndedAt = new Date();
                 const proof_based_answer_button = document.getElementById("proof_based_answer_button");
@@ -122,6 +125,38 @@
                     }
                 });
 
+            // load mcq options
+                const mcq_options = document.getElementById("mcq_options");
+                if (sessionProblems[current_problem_number].problems.problem_type == 'mcq') {
+                    mcq_options.replaceChildren();
+                    let { data: options , error: optionsError } = await client.from('solutions')
+                        .select('*')
+                        .eq('problem_id', sessionProblems[current_problem_number].problems.id)
+                        .eq('canon', true);
+
+                    for (const option of options) {
+                        const cell = document.createElement('button');
+                        cell.className = 'subcell nav_button';
+                        cell.innerHTML = option.statement_html;
+                        cell.addEventListener('click', async function click() {});
+                        mcq_options.appendChild(cell)
+                    }
+                }
+
+                // submit logic
+                mcq_submit = document.getElementById('mcq_submit');
+
+                mcq_submit.disabled = false;
+                async function submit_mcq_answer() {
+                    mcq_submit.disabled = true;
+                    mcq_submit.classList.remove('nav_button');
+                    mcq_submit.classList.add('dead_button');
+                }
+                mcq_submit.addEventListener('click', submit_mcq_answer);
+            // integer answer
+            const integer_block = document.getElementById('integer_block');
+                
+                // submit logic
 
             // sync to database for current problem
 
