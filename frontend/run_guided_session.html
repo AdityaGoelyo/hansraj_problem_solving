@@ -80,15 +80,12 @@
         
             // Load some data
             let { user, params, session, sessionId, sessionProblems, current_problem_number, now } = await loadData();
-            
             // Get highest attempt number of the current problem
             let HighestAttemptNumber = await getHighestAttemptNumber(user, sessionProblems, current_problem_number);
-            
             // upload session attempt number to session_attempts table
-            await upload_attempt_number_to_session_attempts(sessionId, user, params, now);
+            const session_attempt_id =  upload_attempt_number_to_session_attempts(user, sessionId, user, params, now);
             
-            // set webpage title
-
+            // set webpage and session title
             const webpage_title = document.getElementById("webpage_title");
             webpage_title.textContent = session.title;
 
@@ -132,111 +129,29 @@
             // answer display logic
 
             showAnswerBlock(sessionProblems[current_problem_number].problems.problem_type);
-            async function refresh_answer_fields(){
 
-                solution_id = crypto.randomUUID();
+            // refresh answer fields
 
-                // reset proof values
+            ({ isProved, problemStartedAt, problemEndedAt } = await refresh_answer_fields(proof_based_answer_button, isProved, problemStartedAt, problemEndedAt, sessionProblems, current_problem_number, mcq_options, mcq_submit, integer_submit));
 
-                    proof_based_answer_button.classList.remove('selected');
-                    isProved = false;
-                    problemStartedAt = new Date();
-                    problemEndedAt = new Date();
+            // wiring submit logic
 
-                // load mcq options
-
-                    if (sessionProblems[current_problem_number].problems.problem_type == 'mcq') {
-                        mcq_options.replaceChildren();
-                        mcq_submit.disabled = false;
-                        mcq_submit.classList.remove('dead_button');
-                        mcq_submit.classList.add('nav_button');
-                        let { data: options , error: optionsError } = await client.from('solutions')
-                            .select('*')
-                            .eq('problem_id', sessionProblems[current_problem_number].problems.id)
-                            .eq('canon', true);
-
-                        for (const option of options) {
-                            const cell = document.createElement('button');
-                            cell.className = 'subcell nav_button';
-                            cell.innerHTML = option.statement_html;
-                            cell.addEventListener('click', async function click() {
-                                answer_html = option.statement_html;
-                                answer_text = option.statement_text;
-                            });
-                            mcq_options.appendChild(cell)
-                        }
-                    }
-                    else if (sessionProblems[current_problem_number].problems.problem_type == 'integer') {
-                        integer_submit.disabled = false;
-                        integer_submit.classList.remove('dead_button');
-                        integer_submit.classList.add('nav_button');
-                    }
-            }
-            refresh_answer_fields();
-
-            // submit logic for mcq
-
-                async function submit_mcq_answer() {
-                    solution_id = crypto.randomUUID();
-                    mcq_submit.disabled = true;
-                    mcq_submit.classList.remove('nav_button');
-                    mcq_submit.classList.add('dead_button');
-                    await client.from('solutions').insert({
-                        'id' : solution_id, 
-                        'solver_id' : user.id,
-                        'problem_id' : sessionProblems[current_problem_number].problems.id,
-                        'canon' : false,
-                        'statement_text' : answer_text,
-                        'statement_html' : answer_html
-                    });
-                    await client.from('attempts').insert({
-                        'solver_id':user.id,
-                        'problem_id':sessionProblems[current_problem_number].problems.id,
-                        'session_id':sessionId,
-                        'solution_id': solution_id,
-                        'attempt_number':HighestAttemptNumber+1, // correct this to a more dynamic number later
-                        'time_taken_seconds': Math.round((problemEndedAt - problemStartedAt) / 1000), // time taken in seconds
-                        'session_attempt_id': session_attempt_id
-                    });
-                }
-                mcq_submit.addEventListener('click', submit_mcq_answer);
-          
-            // integer answer
-                
-                // submit logic
-                async function submit_integer_answer() {
-                    solution_id = crypto.randomUUID();
-                    integer_submit.disabled = true;
-                    integer_submit.classList.remove('nav_button');
-                    integer_submit.classList.add('dead_button');
-                    await client.from('solutions').insert({
-                        'id' : solution_id, 
-                        'solver_id' : user.id,
-                        'problem_id' : sessionProblems[current_problem_number].problems.id,
-                        'canon' : false,
-                        'statement_text' : document.getElementById('integer_answer_input').value
-                    });
-                    await client.from('attempts').insert({
-                        'solver_id':user.id,
-                        'problem_id':sessionProblems[current_problem_number].problems.id,
-                        'session_id':sessionId,
-                        'solution_id': solution_id,
-                        'attempt_number':HighestAttemptNumber+1, // correct this to a more dynamic number later
-                        'time_taken_seconds': Math.round((problemEndedAt - problemStartedAt) / 1000), // time taken in seconds
-                        'session_attempt_id': session_attempt_id
-                    });
-                }
-                integer_submit.addEventListener('click', submit_integer_answer);
+            mcq_submit.addEventListener('click', function () {
+                submit_mcq_answer(mcq_submit, mcq_options, user, sessionProblems, current_problem_number, sessionId, solution_id, HighestAttemptNumber, problemStartedAt, problemEndedAt, session_attempt_id);
+            });
+            integer_submit.addEventListener('click', function () {
+                submit_integer_answer(integer_submit, user, sessionProblems, current_problem_number, sessionId, HighestAttemptNumber, problemStartedAt, problemEndedAt, session_attempt_id);
+            });
 
             // sync to database for current problem
 
             // upadate session_states_log for first problem
 
             await client.from('session_states_log').insert({
-                    solver_id:user.id,
-                    problem_id:sessionProblems[current_problem_number].problems.id,
-                    session_id:sessionId,
-                    presented_at: now
+                    'solver_id':user.id,
+                    'problem_id':sessionProblems[current_problem_number].problems.id,
+                    'session_id':sessionId,
+                    'presented_at': now
                 });
 
             // check for changes in sessions table for current_problem_number
@@ -303,7 +218,7 @@
 
                     // reset answer fields
 
-                    refresh_answer_fields();
+                    ({ isProved, problemStartedAt, problemEndedAt } = await refresh_answer_fields(proof_based_answer_button, isProved, problemStartedAt, problemEndedAt, sessionProblems, current_problem_number, mcq_options, mcq_submit, integer_submit));
 
                     // reset answer type
                     showAnswerBlock(sessionProblems[current_problem_number].problems.problem_type);
