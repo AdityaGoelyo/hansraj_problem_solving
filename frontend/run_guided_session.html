@@ -105,46 +105,27 @@
             current_problem_data.innerHTML = sessionProblems[current_problem_number].problems.statement_html;
 
             // answer field
-            
-            // answer display logic
 
-            showAnswerBlock(sessionProblems[current_problem_number].problems.problem_type);
+            // define variables amd setup button functions
 
-            // proof based answer
-                const proof_block = document.getElementById('proof_block');
-                let problemStartedAt = new Date();
-                let problemEndedAt = new Date();
-                const proof_based_answer_button = document.getElementById("proof_based_answer_button");
-                let isProved = false;
-                proof_based_answer_button.addEventListener('click', async function () {
-                    proof_based_answer_button.classList.toggle('selected');
-                    isProved = !isProved;
-                    if (isProved == true) {
-                        problemEndedAt = new Date();
-                        await client.from('session_states_log').update({closed_at: new Date().toISOString()}).eq('presented_at',now);
-                    }
-                });
-
-            // load mcq options
-                const mcq_options = document.getElementById("mcq_options");
-                if (sessionProblems[current_problem_number].problems.problem_type == 'mcq') {
-                    mcq_options.replaceChildren();
-                    let { data: options , error: optionsError } = await client.from('solutions')
-                        .select('*')
-                        .eq('problem_id', sessionProblems[current_problem_number].problems.id)
-                        .eq('canon', true);
-
-                    for (const option of options) {
-                        const cell = document.createElement('button');
-                        cell.className = 'subcell nav_button';
-                        cell.innerHTML = option.statement_html;
-                        cell.addEventListener('click', async function click() {});
-                        mcq_options.appendChild(cell)
-                    }
+            const proof_block = document.getElementById('proof_block');            
+            const mcq_options = document.getElementById("mcq_options");
+            const mcq_submit = document.getElementById('mcq_submit');
+            const integer_block = document.getElementById('integer_block');
+            let problemStartedAt = new Date();
+            let problemEndedAt = new Date();
+            const proof_based_answer_button = document.getElementById("proof_based_answer_button");
+            let isProved = false;
+            proof_based_answer_button.addEventListener('click', async function () {
+                proof_based_answer_button.classList.toggle('selected');
+                isProved = !isProved;
+                if (isProved == true) {
+                    problemEndedAt = new Date();
+                    await client.from('session_states_log').update({closed_at: new Date().toISOString()}).eq('presented_at',now);
                 }
-
-                // submit logic
-                mcq_submit = document.getElementById('mcq_submit');
+            });
+            
+            // submit logic for mcq
 
                 mcq_submit.disabled = false;
                 async function submit_mcq_answer() {
@@ -153,14 +134,44 @@
                     mcq_submit.classList.add('dead_button');
                 }
                 mcq_submit.addEventListener('click', submit_mcq_answer);
+          
             // integer answer
-            const integer_block = document.getElementById('integer_block');
                 
                 // submit logic
 
+            // answer display logic
+
+            showAnswerBlock(sessionProblems[current_problem_number].problems.problem_type);
+            async function refresh_answer_fields(){
+                // reset proof values
+
+                    proof_based_answer_button.classList.remove('selected');
+                    isProved = false;
+                    problemStartedAt = new Date();
+                    problemEndedAt = new Date();
+
+                // load mcq options
+
+                    if (sessionProblems[current_problem_number].problems.problem_type == 'mcq') {
+                        mcq_options.replaceChildren();
+                        let { data: options , error: optionsError } = await client.from('solutions')
+                            .select('*')
+                            .eq('problem_id', sessionProblems[current_problem_number].problems.id)
+                            .eq('canon', true);
+
+                        for (const option of options) {
+                            const cell = document.createElement('button');
+                            cell.className = 'subcell nav_button';
+                            cell.innerHTML = option.statement_html;
+                            cell.addEventListener('click', async function click() {});
+                            mcq_options.appendChild(cell)
+                        }
+                    }
+            }
+            refresh_answer_fields();
+
             // sync to database for current problem
 
-                
             // upadate session_states_log for first problem
 
             await client.from('session_states_log').insert({
@@ -224,12 +235,9 @@
                     .limit(1);
                     HighestAttemptNumber = PreviousAttemptNumber.length ? PreviousAttemptNumber[0].attempt_number : 0; 
 
+                    // reset answer fields
 
-                    // reset proof values
-                    proof_based_answer_button.classList.remove('selected');
-                    isProved = false;
-                    problemStartedAt = new Date();
-                    problemEndedAt = new Date();
+                    refresh_answer_fields();
 
                     // reset answer type
                     showAnswerBlock(sessionProblems[current_problem_number].problems.problem_type);
