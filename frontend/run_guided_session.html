@@ -111,6 +111,9 @@
             const proof_block = document.getElementById('proof_block');            
             const mcq_options = document.getElementById("mcq_options");
             const mcq_submit = document.getElementById('mcq_submit');
+            let answer_text = ""
+            let answer_html = ""
+            let solution_id = crypto.randomUUID();
             const integer_block = document.getElementById('integer_block');
             let problemStartedAt = new Date();
             let problemEndedAt = new Date();
@@ -125,20 +128,6 @@
                 }
             });
             
-            // submit logic for mcq
-
-                mcq_submit.disabled = false;
-                async function submit_mcq_answer() {
-                    mcq_submit.disabled = true;
-                    mcq_submit.classList.remove('nav_button');
-                    mcq_submit.classList.add('dead_button');
-                }
-                mcq_submit.addEventListener('click', submit_mcq_answer);
-          
-            // integer answer
-                
-                // submit logic
-
             // answer display logic
 
             showAnswerBlock(sessionProblems[current_problem_number].problems.problem_type);
@@ -163,12 +152,47 @@
                             const cell = document.createElement('button');
                             cell.className = 'subcell nav_button';
                             cell.innerHTML = option.statement_html;
-                            cell.addEventListener('click', async function click() {});
+                            cell.addEventListener('click', async function click() {
+                                answer_html = option.statement_html;
+                                answer_text = option.statement_text;
+                            });
                             mcq_options.appendChild(cell)
                         }
                     }
             }
             refresh_answer_fields();
+
+            // submit logic for mcq
+
+                mcq_submit.disabled = false;
+                async function submit_mcq_answer() {
+                    solution_id = crypto.randomUUID();
+                    mcq_submit.disabled = true;
+                    mcq_submit.classList.remove('nav_button');
+                    mcq_submit.classList.add('dead_button');
+                    await client.from('solutions').insert({
+                        'id' : solution_id, 
+                        'solver_id' : user.id,
+                        'problem_id' : sessionProblems[current_problem_number].problems.id,
+                        'canon' : false,
+                        'statement_text' : answer_text,
+                        'statement_html' : answer_html
+                    });
+                    await client.from('attempts').insert({
+                        'solver_id':user.id,
+                        'problem_id':sessionProblems[current_problem_number].problems.id,
+                        'session_id':sessionId,
+                        'solution_id': solution_id,
+                        'attempt_number':HighestAttemptNumber+1, // correct this to a more dynamic number later
+                        'time_taken_seconds': Math.round((problemEndedAt - problemStartedAt) / 1000), // time taken in seconds
+                        'session_attempt_id': session_attempt_id
+                    });
+                }
+                mcq_submit.addEventListener('click', submit_mcq_answer);
+          
+            // integer answer
+                
+                // submit logic
 
             // sync to database for current problem
 
@@ -205,24 +229,32 @@
                     // insert the new attempt
 
                     // proof based answer
+                    if (sessionProblems[previousProblemNumber].problems.problem_type == 'proof'){
                     const error = await client.from('attempts').insert({
-                        solver_id:user.id,
-                        problem_id:sessionProblems[previousProblemNumber].problems.id,
-                        session_id:sessionId,
-                        attempt_number:HighestAttemptNumber+1, // correct this to a more dynamic number later
-                        is_correct:isProved, // ensure that this is correctly maintained
-                        time_taken_seconds: Math.round((problemEndedAt - problemStartedAt) / 1000), // time taken in seconds
-                        session_attempt_id: session_attempt_id
+                        'solver_id':user.id,
+                        'problem_id':sessionProblems[previousProblemNumber].problems.id,
+                        'session_id':sessionId,
+                        'attempt_number':HighestAttemptNumber+1, // correct this to a more dynamic number later
+                        'is_correct':isProved, // ensure that this is correctly maintained
+                        'time_taken_seconds': Math.round((problemEndedAt - problemStartedAt) / 1000), // time taken in seconds
+                        'session_attempt_id': session_attempt_id
                     });
                     if (error) console.error(error);
+                    }
+                    else if (sessionProblems[previousProblemNumber].problems.problem_type == 'integer') {
+                    
+                    }
+                    else if (sessionProblems[previousProblemNumber].problems.problem_type == 'mcq') {
+
+                    }
 
                     // update session states log
                     now = new Date().toISOString();
                     await client.from('session_states_log').insert({
-                        solver_id:user.id,
-                        problem_id:sessionProblems[current_problem_number].problems.id,
-                        session_id:sessionId,
-                        presented_at: now
+                        'solver_id':user.id,
+                        'problem_id':sessionProblems[current_problem_number].problems.id,
+                        'session_id':sessionId,
+                        'presented_at': now
                     });
 
                     // Update The Problems Highest Attempt Number
