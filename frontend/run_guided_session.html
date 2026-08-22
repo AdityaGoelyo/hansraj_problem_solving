@@ -78,45 +78,32 @@
 
         async function init() {
         
-            // Load some data
-            let { user, params, session, sessionId, sessionProblems, current_problem_number, now } = await loadData();
+            // Load data, define const elements, define let variables
+            let { user, params, session, sessionId, sessionProblems, current_problem_number, now, total_num_problems } = await loadData();
+            const {proof_block, mcq_options, mcq_submit, integer_block, integer_submit, proof_based_answer_button, webpage_title, sessionTitle, current_problem_data, problem_counter, current_problem_title, current_problem_id} = define_const_elements();
+            let {answer_text, answer_html, solution_id, problemStartedAt, problemEndedAt, isProved, previousProblemNumber} = define_let_variables();
+
             // Get highest attempt number of the current problem
             let HighestAttemptNumber = await getHighestAttemptNumber(user, sessionProblems, current_problem_number);
+
             // upload session attempt number to session_attempts table
-            const session_attempt_id =  upload_attempt_number_to_session_attempts(user, sessionId, user, params, now);
+            const session_attempt_id = await upload_attempt_number_to_session_attempts(user, sessionId, params, now);
             
             // set webpage and session title
-            const webpage_title = document.getElementById("webpage_title");
             webpage_title.textContent = session.title;
-
-            const sessionTitle = document.getElementById("sessionTitle");
             sessionTitle.textContent = session.title;
 
-            // render problem title, id and counter
+            // update problem in frontend
 
-            const {problem_counter, total_num_problems, current_problem_title, current_problem_id} = render_problem_title_id_and_counter(sessionProblems, current_problem_number);
-
-            // render statement text
-
-            const current_problem_data = document.getElementById("current_problem_data");
+            problem_counter.textContent = `Current Problem Number: ${current_problem_number + 1}/${total_num_problems + 1}`;
+            current_problem_title.textContent = sessionProblems[current_problem_number].problems.title;
             current_problem_data.innerHTML = sessionProblems[current_problem_number].problems.statement_html;
+            current_problem_id.textContent = `Problem Id: ${sessionProblems[current_problem_number].problems.id}`;
 
             // answer field
 
-            // define variables and setup button functions
+            // proof based answer logic
 
-            const proof_block = document.getElementById('proof_block');            
-            const mcq_options = document.getElementById("mcq_options");
-            const mcq_submit = document.getElementById('mcq_submit');
-            let answer_text = ""
-            let answer_html = ""
-            let solution_id = crypto.randomUUID();
-            const integer_block = document.getElementById('integer_block');
-            const integer_submit = document.getElementById('integer_submit');
-            let problemStartedAt = new Date();
-            let problemEndedAt = new Date();
-            const proof_based_answer_button = document.getElementById("proof_based_answer_button");
-            let isProved = false;
             proof_based_answer_button.addEventListener('click', async function () {
                 proof_based_answer_button.classList.toggle('selected');
                 isProved = !isProved;
@@ -137,9 +124,11 @@
             // wiring submit logic
 
             mcq_submit.addEventListener('click', function () {
+                problemEndedAt = new Date();
                 submit_mcq_answer(mcq_submit, mcq_options, user, sessionProblems, current_problem_number, sessionId, solution_id, HighestAttemptNumber, problemStartedAt, problemEndedAt, session_attempt_id);
             });
             integer_submit.addEventListener('click', function () {
+                problemEndedAt = new Date();
                 submit_integer_answer(integer_submit, user, sessionProblems, current_problem_number, sessionId, HighestAttemptNumber, problemStartedAt, problemEndedAt, session_attempt_id);
             });
 
@@ -167,36 +156,13 @@
                     filter: `id=eq.${sessionId}`
                 },
                 async (payload) => {
-                    let previousProblemNumber = current_problem_number;
-                    current_problem_number = payload.new.current_problem_number;
-                    problem_counter.textContent = `Current Problem Number: ${current_problem_number + 1}/${total_num_problems + 1}`;
-                    current_problem_title.textContent = sessionProblems[current_problem_number].problems.title;
-                    current_problem_data.innerHTML = sessionProblems[current_problem_number].problems.statement_html;
-                    current_problem_id.textContent = `Problem Id: ${sessionProblems[current_problem_number].problems.id}`;
-                    if (isProved == false) problemEndedAt = new Date();
 
-                    // insert the new attempt
-
-                    // proof based answer
+                    // load the next problem in frontend and update problem number counters
+                    ({ previousProblemNumber, current_problem_number } = update_problem_in_frontend(current_problem_number, payload, problem_counter, current_problem_title, current_problem_data, current_problem_id, sessionProblems, total_num_problems, previousProblemNumber));
+                    // insert proof based answer, which submits when we go onto the next problem
                     if (sessionProblems[previousProblemNumber].problems.problem_type == 'proof'){
-                    const error = await client.from('attempts').insert({
-                        'solver_id':user.id,
-                        'problem_id':sessionProblems[previousProblemNumber].problems.id,
-                        'session_id':sessionId,
-                        'attempt_number':HighestAttemptNumber+1, // correct this to a more dynamic number later
-                        'is_correct':isProved, // ensure that this is correctly maintained
-                        'time_taken_seconds': Math.round((problemEndedAt - problemStartedAt) / 1000), // time taken in seconds
-                        'session_attempt_id': session_attempt_id
-                    });
-                    if (error) console.error(error);
+                        submit_proof_answer(isProved, user, sessionProblems, previousProblemNumber, sessionId, HighestAttemptNumber, problemEndedAt, problemStartedAt, session_attempt_id)
                     }
-                    else if (sessionProblems[previousProblemNumber].problems.problem_type == 'integer') {
-                    
-                    }
-                    else if (sessionProblems[previousProblemNumber].problems.problem_type == 'mcq') {
-
-                    }
-
                     // update session states log
                     now = new Date().toISOString();
                     await client.from('session_states_log').insert({
@@ -205,21 +171,10 @@
                         'session_id':sessionId,
                         'presented_at': now
                     });
-
                     // Update The Problems Highest Attempt Number
-
-                    let {data : PreviousAttemptNumber} = await client.from('attempts')
-                    .select('attempt_number')
-                    .eq('solver_id',user.id)
-                    .eq('problem_id', sessionProblems[current_problem_number].problems.id)
-                    .order('attempt_number', {ascending: false})
-                    .limit(1);
-                    HighestAttemptNumber = PreviousAttemptNumber.length ? PreviousAttemptNumber[0].attempt_number : 0; 
-
+                    HighestAttemptNumber = await getHighestAttemptNumber(user, sessionProblems, current_problem_number);  
                     // reset answer fields
-
                     ({ isProved, problemStartedAt, problemEndedAt } = await refresh_answer_fields(proof_based_answer_button, isProved, problemStartedAt, problemEndedAt, sessionProblems, current_problem_number, mcq_options, mcq_submit, integer_submit));
-
                     // reset answer type
                     showAnswerBlock(sessionProblems[current_problem_number].problems.problem_type);
                 }   
