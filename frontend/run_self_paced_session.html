@@ -50,44 +50,49 @@
                 <div class = "subcell" id = "problem_counter"></div>
         </div>
 
-        <!-- Proof based answer button -->
+            <!-- Proof based answer button -->
 
-        <div id = "proof_block" class = "answer_block">
-            <button class = "cell" id = "proof_based_answer_button">Press when proved!</button>
-        </div>
+            <div id = "proof_block" class = "answer_block">
+                <button class = "cell" id = "proof_based_answer_button">Press when proved!</button>
+            </div>
 
-        <!-- Integer answer field -->
+            <!-- Integer answer field -->
 
-        <div id = "integer_block" class = "answer_block">
-            <input class = "cell" type = "text" id = "integer_answer_input" placeholder="Type answer (integer)">
-            <button class = "cell nav_button" id = "integer_submit">Submit Answer</button>
-        </div>
+            <div id = "integer_block" class = "answer_block">
+                <input class = "cell" type = "text" id = "integer_answer_input" placeholder="Type answer (integer)">
+                <button class = "cell nav_button" id = "integer_submit">Submit Answer</button>
+            </div>
 
-        <!-- Mcq answer field-->
+            <!-- Mcq answer field-->
 
-        <div id = "mcq_block" class = "answer_block">
-            <div id = "mcq_options" class = "answer_block"></div>
-            <button class = "cell nav_button" id = "mcq_submit">Submit Answer</button>
-        </div>
+            <div id = "mcq_block" class = "answer_block">
+                <div id = "mcq_options" class = "answer_block"></div>
+                <button class = "cell nav_button" id = "mcq_submit">Submit Answer</button>
+            </div>
 
+        <!-- next and previous problem buttons -->
+            <div class = "cell" id = "session_controls" style="flex-direction: row;">
+                <button class = "subcell nav_button" id = "previous_button" style="margin: 6px; padding: 8px;">Previous</button>
+                <button class = "subcell nav_button" id = "next_button" style="padding: 8px; margin: 6px;">Next</button>
+            </div>
     </div>
 
     <script>
 
-    isLoggedIn();
+        isLoggedIn();
 
         async function init() {
         
             // Load data, define const elements, define let variables
-            let { user, params, session, sessionId, sessionProblems, current_problem_number, now, total_num_problems } = await loadData();
+            let { user, params, session, sessionId, sessionProblems, _, now, total_num_problems } = await loadData();
             const {proof_block, mcq_options, mcq_submit, integer_block, integer_submit, proof_based_answer_button, webpage_title, sessionTitle, current_problem_data, problem_counter, current_problem_title, current_problem_id} = define_const_elements();
             let {answer_text, answer_html, solution_id, problemStartedAt, problemEndedAt, isProved, previousProblemNumber} = define_let_variables();
 
+            // upload session attempt number to session_attempts table
+            let {session_attempt_id, current_problem_number} = await upload_attempt_number_to_session_attempts(user, sessionId, params, now);
+
             // Get highest attempt number of the current problem
             let HighestAttemptNumber = await getHighestAttemptNumber(user, sessionProblems, current_problem_number);
-
-            // upload session attempt number to session_attempts table
-            const { session_attempt_id, _ } = await upload_attempt_number_to_session_attempts(user, sessionId, params, now);
             
             // set webpage and session title
             webpage_title.textContent = session.title;
@@ -143,17 +148,13 @@
                     'presented_at': now
                 });
 
-            // check for changes in sessions table for current_problem_number
-            // update page accordingly
-            // upload data accordingly
-            
-            let current_session_params = client.channel('current_session_params').on(
+            let current_session_attempt = client.channel('current_session_attempt').on(
                 'postgres_changes',
                 {
                     event: 'UPDATE',
                     schema: 'public',
-                    table: 'sessions',
-                    filter: `id=eq.${sessionId}`
+                    table: 'session_attempts',
+                    filter: `id=eq.${session_attempt_id}`
                 },
                 async (payload) => {
 
@@ -179,10 +180,40 @@
                     showAnswerBlock(sessionProblems[current_problem_number].problems.problem_type);
                 }   
                 ).subscribe();
+
+            // wire next and previous buttons
+
+            // previous button
+            
+            const previous_button = document.getElementById("previous_button");
+            async function previousPosition() {
+                if (current_problem_number - 1 >= 0) {
+                    const error = await client.from('session_attempts').update( {current_problem_number: current_problem_number-1} ).eq('id', session_attempt_id);
+                    if (error) console.log(error);
+                    let now = new Date().toISOString();
+                    await client.from('session_states_log').insert( {session_id: sessionId, problem_id:sessionProblems[current_problem_number].problems.id, closed_at:now, solver_id:user.id} );
+                    await client.from('session_states_log').insert( {session_id: sessionId, problem_id:sessionProblems[current_problem_number-1].problems.id, presented_at:now, solver_id:user.id} );
+                }  
+            }
+            previous_button.addEventListener('click', previousPosition);
+
+            // next button
+
+            const next_button = document.getElementById("next_button");
+            async function nextPosition() {
+                if (current_problem_number + 1 <= total_num_problems) {
+                    const error = await client.from('session_attempts').update( {current_problem_number: current_problem_number+1} ).eq('id', session_attempt_id);
+                    if (error) console.log(error);
+                    let now = new Date().toISOString();
+                    await client.from('session_states_log').insert( {session_id: sessionId, problem_id:sessionProblems[current_problem_number].problems.id, closed_at:now, solver_id:user.id} );
+                    await client.from('session_states_log').insert( {session_id: sessionId, problem_id:sessionProblems[current_problem_number + 1].problems.id, presented_at:now, solver_id:user.id} );
+                }  
+            }
+            next_button.addEventListener('click', nextPosition);
+
         }
 
         init();
-        
     </script>
 
 </body>

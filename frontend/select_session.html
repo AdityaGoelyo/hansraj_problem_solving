@@ -56,7 +56,11 @@
                         .limit(1);
                         if (error) console.error(error);
                         let HighestAttemptNumber = AttemptNumberArray.length  ? AttemptNumberArray[0].attempt_number + 1 : 1; 
-                        window.location.href = 'run_guided_session.html?session=' + session.id + '&attempt=' + HighestAttemptNumber;
+                        if (session.session_type == 'guided') {
+                            window.location.href = 'run_guided_session.html?session=' + session.id + '&attempt=' + HighestAttemptNumber;
+                        } else if (session.session_type == 'self_paced') {
+                            window.location.href = 'run_self_paced_session.html?session=' + session.id + '&attempt=' + HighestAttemptNumber;
+                        }
                     });
                     container.appendChild(cell);
                 }

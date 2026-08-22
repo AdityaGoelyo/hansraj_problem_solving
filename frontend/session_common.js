@@ -23,10 +23,12 @@ async function getHighestAttemptNumber(user, sessionProblems, current_problem_nu
 }
 
 async function upload_attempt_number_to_session_attempts(user, sessionId, params, now) {
-    let { data:existingAttempt, error } = await client.from('session_attempts').select('id').eq('session_id', sessionId).eq('solver_id', user.id).eq('attempt_number', parseInt(params.get('attempt'), 10)).maybeSingle();
+    let { data:existingAttempt, error } = await client.from('session_attempts').select('*').eq('session_id', sessionId).eq('solver_id', user.id).eq('attempt_number', parseInt(params.get('attempt'), 10)).maybeSingle();
     let session_attempt_id;
+    let current_problem_number;
     if (existingAttempt) {
         session_attempt_id = existingAttempt.id;
+        current_problem_number = existingAttempt.current_problem_number;
     } else {
         session_attempt_id = crypto.randomUUID();
         await client.from('session_attempts').upsert({
@@ -36,8 +38,10 @@ async function upload_attempt_number_to_session_attempts(user, sessionId, params
             'attempt_number': parseInt(params.get('attempt'), 10),
             'started_at': now
         });
+        current_problem_number = 0;
     }
-    return session_attempt_id;
+    console.log(current_problem_number);
+    return {session_attempt_id, current_problem_number};
 }
 
 function showAnswerBlock(problemType) {
