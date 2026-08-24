@@ -32,6 +32,10 @@
     <script defer
         src="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.js">
     </script>
+    <script defer
+        src="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/contrib/auto-render.min.js"
+        onload="renderMathInElement(document.body);">
+    </script>
 
     <div class = "screen">
 
@@ -82,6 +86,18 @@
 
         async function init() {
         
+            function renderProblemMath() {
+                renderMathInElement(current_problem_data, {
+                    delimiters: [
+                        {left: "$$", right: "$$", display: true},
+                        {left: "\\[", right: "\\]", display: true},
+                        {left: "\\(", right: "\\)", display: false},
+                        {left: "$", right: "$", display: false}
+                    ],
+                    throwOnError: false
+                });
+            }
+
             // Load data, define const elements, define let variables
             let { user, params, session, sessionId, sessionProblems, current_problem_number, now, total_num_problems } = await loadData();
             const {proof_block, mcq_options, mcq_submit, integer_block, integer_submit, proof_based_answer_button, webpage_title, sessionTitle, current_problem_data, problem_counter, current_problem_title, current_problem_id} = define_const_elements();
@@ -102,6 +118,7 @@
             problem_counter.textContent = `Current Problem Number: ${current_problem_number + 1}/${total_num_problems + 1}`;
             current_problem_title.textContent = sessionProblems[current_problem_number].problems.title;
             current_problem_data.innerHTML = sessionProblems[current_problem_number].problems.statement_html;
+            renderProblemMath();
             current_problem_id.textContent = `Problem Id: ${sessionProblems[current_problem_number].problems.id}`;
 
             // answer field
@@ -163,6 +180,7 @@
 
                     // load the next problem in frontend and update problem number counters
                     ({ previousProblemNumber, current_problem_number } = update_problem_in_frontend(current_problem_number, payload, problem_counter, current_problem_title, current_problem_data, current_problem_id, sessionProblems, total_num_problems, previousProblemNumber));
+                    renderProblemMath();
                     // insert proof based answer, which submits when we go onto the next problem
                     if (sessionProblems[previousProblemNumber].problems.problem_type == 'proof'){
                         submit_proof_answer(isProved, user, sessionProblems, previousProblemNumber, sessionId, HighestAttemptNumber, problemEndedAt, problemStartedAt, session_attempt_id)
